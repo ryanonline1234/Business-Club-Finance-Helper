@@ -1,20 +1,72 @@
 "use client";
 
-import dynamic from "next/dynamic";
-
-// Import server components directly since this is now a client component
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { StatCard } from "./StatCard";
 import TransactionForm from "./TransactionForm";
 import TransactionList from "./TransactionList";
 
-const DashboardContent = dynamic(() => Promise.resolve(() => {
-  return <div>Loading...</div>;
-}), {
-  ssr: true,
-});
-
 export default function ClientDashboard() {
-  // Client-side only component
+  const { data: session, status } = useSession();
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchTransactions = async () => {
+      try {
+        const response = await fetch("/api/transactions?limit=10");
+        if (response.ok) {
+          const data = await response.json();
+          setTransactions(data.transactions || []);
+        }
+      } catch (error) {
+        console.error("Failed to fetch transactions:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (status === "authenticated") {
+      fetchTransactions();
+    } else {
+      setLoading(false);
+    }
+  }, [status]);
+
+  // Mock data for development when not authenticated
+  const mockTransactions = [
+    {
+      id: "1",
+      amount: 25.5,
+      description: "Snacks for club meeting",
+      category: { name: "Snacks", slug: "snacks", icon: "snack" },
+      created_at: "2026-03-25T10:00:00Z",
+      merchant: "Costco",
+    },
+    {
+      id: "2",
+      amount: 150,
+      description: "Activity supplies",
+      category: { name: "Activities", slug: "activities", icon: "activity" },
+      created_at: "2026-03-24T14:30:00Z",
+      merchant: "Office Depot",
+    },
+    {
+      id: "3",
+      amount: 45,
+      description: "Prize for competition",
+      category: { name: "Prizes", slug: "prizes", icon: "prize" },
+      created_at: "2026-03-23T16:45:00Z",
+      merchant: "Amazon",
+    },
+  ];
+
+  const displayTransactions = loading ? [] : transactions.length > 0 ? transactions : mockTransactions;
+
+  const totalSpent = displayTransactions.reduce((sum, t) => sum + t.amount, 0);
+  const pendingCount = displayTransactions.filter((t: any) => t.status === "pending").length;
+  const approvedCount = displayTransactions.filter((t: any) => t.status === "approved").length;
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
@@ -26,19 +78,19 @@ export default function ClientDashboard() {
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 mb-8">
         <StatCard
           label="Total Spent"
-          value="$175.50"
+          value={`$${totalSpent.toFixed(2)}`}
           trend="+12%"
           trendUp={true}
         />
         <StatCard
           label="Pending Approvals"
-          value="0"
-          trend="All clear"
-          trendUp={true}
+          value={pendingCount.toString()}
+          trend={pendingCount > 0 ? `${pendingCount} pending` : "All clear"}
+          trendUp={pendingCount === 0}
         />
         <StatCard
           label="Approved Transactions"
-          value="2"
+          value={approvedCount.toString()}
           trend="All good"
           trendUp={true}
         />
@@ -55,27 +107,7 @@ export default function ClientDashboard() {
           <h2 className="text-lg font-medium text-slate-900 mb-4">
             Recent Transactions
           </h2>
-          {/* Use mock data for now */}
-          <TransactionList
-            transactions={[
-              {
-                id: "1",
-                amount: 25.5,
-                description: "Snacks for club meeting",
-                category: { name: "Snacks", slug: "snacks", icon: "snack" },
-                created_at: "2026-03-25T10:00:00Z",
-                merchant: "Costco",
-              },
-              {
-                id: "2",
-                amount: 150,
-                description: "Activity supplies",
-                category: { name: "Activities", slug: "activities", icon: "activity" },
-                created_at: "2026-03-24T14:30:00Z",
-                merchant: "Office Depot",
-              },
-            ]}
-          />
+          <TransactionList transactions={displayTransactions} />
         </div>
       </div>
     </div>
