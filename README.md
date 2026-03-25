@@ -1,36 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Treasury Club Dashboard
 
-## Getting Started
+A simple, secure way to track club finances, manage budgets, and monitor spending on activities, prizes, and snacks.
 
-First, run the development server:
+## Setup
+
+### 1. Create Supabase Database
+
+1. Go to [supabase.com](https://supabase.com) and sign up (free)
+2. Create a new project
+3. Copy your project URL and anon key
+4. In the SQL Editor, run the schema from `../supabase-schema.sql`
+
+### 2. Configure Environment Variables
+
+Create a `.env.local` file in the project root:
+
+```env
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=your-supabase-project-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
+
+# NextAuth Secret
+NEXTAUTH_SECRET=change-this-to-a-random-secret
+NEXTAUTH_URL=http://localhost:3000
+
+# Google OAuth (optional - for easier login)
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+```
+
+### 3. Install Dependencies
+
+```bash
+npm install
+```
+
+### 4. Run Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to see the app.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Features
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Budget Tracking** - Track club budgets by category
+- **Activity Log** - View all transactions with filtering
+- **Member Management** - Role-based access control
+- **Receipt Uploads** - Link receipts to transactions
+- **Categories** - Budget, Activities, Prizes, Snacks
 
-## Learn More
+## Project Structure
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+treasury-club-dashboard/
+├── src/
+│   ├── app/
+│   │   ├── api/
+│   │   │   ├── auth/[...nextauth]/route.ts
+│   │   │   ├── transactions/route.ts
+│   │   │   └── categories/route.ts
+│   │   ├── dashboard/page.tsx
+│   │   ├── transactions/page.tsx
+│   │   ├── layout.tsx
+│   │   ├── page.tsx
+│   │   └── globals.css
+│   ├── components/
+│   │   ├── Navbar.tsx
+│   │   ├── AuthButton.tsx
+│   │   └── dashboard/
+│   │       ├── TransactionForm.tsx
+│   │       ├── TransactionList.tsx
+│   │       ├── StatCard.tsx
+│   │       └── CategoryBadge.tsx
+│   └── lib/
+│       ├── supabase.ts
+│       └── utils.ts
+└── .env.local
+```
 
 ## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Push code to GitHub
+2. Go to [vercel.com](https://vercel.com) and import your repo
+3. Add environment variables in Vercel dashboard
+4. Deploy!
