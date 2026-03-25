@@ -1,3 +1,5 @@
+"use client";
+
 interface CategoryBadgeProps {
   category: {
     name: string;

@@ -1,4 +1,4 @@
-import { TransactionList } from "@/components/dashboard/TransactionList";
+import TransactionList from "@/components/dashboard/TransactionList";
 
 // Mock data for development
 const mockTransactions = [
