@@ -1,44 +1,28 @@
 import { StatCard } from "@/components/dashboard/StatCard";
 import { TransactionForm } from "@/components/dashboard/TransactionForm";
 import { TransactionList } from "@/components/dashboard/TransactionList";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
 
-async function getTransactions() {
-  const session = await getServerSession(authOptions);
-
-  if (!session) {
-    return [];
-  }
-
-  try {
-    const response = await fetch(`${process.env.NEXTAUTH_URL}/api/transactions`, {
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      return [];
-    }
-
-    const data = await response.json();
-    return data.transactions || [];
-  } catch {
-    return [];
-  }
-}
-
+// Simple client-side component wrapper for dashboard
 export default async function DashboardPage() {
-  const transactions = await getTransactions();
-
-  const totalSpent = transactions.reduce(
-    (sum, t) => sum + (t.amount || 0),
-    0
-  );
-  const pending = transactions.filter((t) => t.status === "pending").length;
-  const approved = transactions.filter((t) => t.status === "approved").length;
+  // For now, show placeholder data. In production, this would fetch from your API
+  const mockTransactions = [
+    {
+      id: "1",
+      amount: 25.50,
+      description: "Snacks for club meeting",
+      category: { name: "Snacks", slug: "snacks", icon: "snack" },
+      created_at: "2026-03-25T10:00:00Z",
+      merchant: "Costco",
+    },
+    {
+      id: "2",
+      amount: 150.00,
+      description: "Activity supplies",
+      category: { name: "Activities", slug: "activities", icon: "activity" },
+      created_at: "2026-03-24T14:30:00Z",
+      merchant: "Office Depot",
+    },
+  ];
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -51,19 +35,19 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 mb-8">
         <StatCard
           label="Total Spent"
-          value={`$${totalSpent.toFixed(2)}`}
+          value="$175.50"
           trend="+12%"
           trendUp={true}
         />
         <StatCard
           label="Pending Approvals"
-          value={pending}
-          trend="Needs attention"
-          trendUp={false}
+          value="0"
+          trend="All clear"
+          trendUp={true}
         />
         <StatCard
           label="Approved Transactions"
-          value={approved}
+          value="2"
           trend="All good"
           trendUp={true}
         />
@@ -80,7 +64,7 @@ export default async function DashboardPage() {
           <h2 className="text-lg font-medium text-slate-900 mb-4">
             Recent Transactions
           </h2>
-          <TransactionList transactions={transactions} />
+          <TransactionList transactions={mockTransactions} />
         </div>
       </div>
     </div>
