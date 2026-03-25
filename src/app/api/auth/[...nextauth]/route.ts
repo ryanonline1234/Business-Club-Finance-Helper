@@ -1,4 +1,5 @@
-import NextAuth from "next-auth";
+import NextAuth, { DefaultSession, DefaultUser } from "next-auth";
+import { JWT, DefaultJWT } from "next-auth/jwt";
 import GoogleProvider from "next-auth/providers/google";
 import GithubProvider from "next-auth/providers/github";
 
@@ -18,14 +19,16 @@ export const authOptions = {
     error: "/auth/error",
   },
   callbacks: {
-    async session({ session, token }) {
-      session.user.id = token.sub;
-      session.user.role = token.role as string;
+    async session({ session, token }: { session: DefaultSession & { user?: { id?: string; role?: string } }; token: DefaultJWT | null }) {
+      if (session.user && token) {
+        session.user.id = token.sub;
+        session.user.role = token.role as string;
+      }
       return session;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user }: { token: DefaultJWT; user?: DefaultUser & { role?: string } }) {
       if (user) {
-        token.role = (user as { role?: string }).role;
+        token.role = user.role;
       }
       return token;
     },
