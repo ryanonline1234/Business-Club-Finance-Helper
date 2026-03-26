@@ -157,6 +157,76 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
+-- Events table (for club meetings, workshops, competitions)
+create table if not exists public.events (
+  id uuid default uuid_generate_v4() primary key,
+  title text not null,
+  description text,
+  start_time timestamptz not null,
+  end_time timestamptz,
+  location text,
+  password text,
+  capacity integer,
+  category text default 'meeting',
+  status text default 'active' check (status in ('active', 'completed', 'cancelled')),
+  created_by uuid references public.profiles not null,
+  created_at timestamptz default now()
+);
+
+-- Attendance table (for event check-ins)
+create table if not exists public.attendance (
+  id uuid default uuid_generate_v4() primary key,
+  event_id uuid references public.events not null,
+  member_id uuid references public.profiles not null,
+  checked_in_at timestamptz default now(),
+  method text default 'password' check (method in ('password', 'qr')),
+  qr_data text,
+  created_at timestamptz default now()
+);
+
+-- Indexes for events
+create index if not exists idx_events_start_time on public.events(start_time);
+create index if not exists idx_events_status on public.events(status);
+create index if not exists idx_events_created_by on public.events(created_by);
+create index if not exists idx_attendance_event_id on public.attendance(event_id);
+create index if not exists idx_attendance_member_id on public.attendance(member_id);
+
+-- Enable RLS for events and attendance
+alter table public.events enable row level security;
+alter table public.attendance enable row level security;
+
+-- RLS Policies for events
+create policy "Public can read events"
+  on public.events for select
+  using (true);
+
+create policy "Admin/Treasurer can manage events"
+  on public.events for all
+  using (auth.uid() in (
+    select id from public.profiles where role in ('admin', 'treasurer')
+  ));
+
+-- RLS Policies for attendance
+create policy "Users can view own attendance"
+  on public.attendance for select
+  using (auth.uid() = member_id);
+
+create policy "Admin/Treasurer can view all attendance"
+  on public.attendance for select
+  using (auth.uid() in (
+    select id from public.profiles where role in ('admin', 'treasurer')
+  ));
+
+create policy "Users can insert own attendance"
+  on public.attendance for insert
+  with check (auth.uid() = member_id);
+
+create policy "Admin/Treasurer can manage all attendance"
+  on public.attendance for all
+  using (auth.uid() in (
+    select id from public.profiles where role in ('admin', 'treasurer')
+  ));
+
 -- Indexes for performance
 create index if not exists idx_transactions_user_id on public.transactions(user_id);
 create index if not exists idx_transactions_category_id on public.transactions(category_id);

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useSession } from "next-auth/react";
-import { supabase } from "@/lib/supabase";
 import { toast } from "react-hot-toast";
 
 export default function TransactionForm() {
@@ -56,8 +55,9 @@ export default function TransactionForm() {
       setCategoryId("");
       setMerchant("");
       setReceiptUrl("");
-    } catch (error: any) {
-      toast.error(error.message || "Error creating transaction");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Error creating transaction";
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

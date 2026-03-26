@@ -1,27 +1,27 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function AuthErrorPage() {
-  const [errorType, setErrorType] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+  const [errorType, setErrorType] = useState<string>("");
+  const [errorMessage, setErrorMessage] = useState<string>("");
   const router = useRouter();
 
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const error = urlParams.get("error");
-    if (error) {
-      setErrorType(error);
-      setErrorMessage(
-        error === "Configuration"
-          ? "The authentication provider is not configured correctly. Please contact an administrator."
-          : error === "AccessDenied"
-          ? "You do not have permission to access this page."
-          : "An error occurred during authentication."
-      );
-    }
-  }, []);
+  const error = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("error")
+    : null;
+
+  if (error) {
+    const msg =
+      error === "Configuration"
+        ? "The authentication provider is not configured correctly. Please contact an administrator."
+        : error === "AccessDenied"
+        ? "You do not have permission to access this page."
+        : "An error occurred during authentication.";
+    setErrorType(error);
+    setErrorMessage(msg);
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 to-slate-100 flex items-center justify-center px-4">

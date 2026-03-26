@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../auth/[...nextauth]/route";
+import { requireAuth, requireRole } from "@/lib/auth";
 
 const supabase = createAdminClient();
 
@@ -20,20 +19,14 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
-
-  if (!session || !session.user) {
+  const user = await requireAuth();
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", session.user.id)
-    .single();
-
-  if (!profile || !["admin", "treasurer"].includes(profile.role)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  const role = await requireRole(["admin", "treasurer"]);
+  if (!role) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const body = await request.json();

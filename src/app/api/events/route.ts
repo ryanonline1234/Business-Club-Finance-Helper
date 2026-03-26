@@ -1,10 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { requireAuth, requireRole } from "@/lib/auth";
 
 const supabase = createAdminClient();
 
-export async function GET(request: Request) {
+// Get all events (admin/treasurer only)
+export async function GET(request: NextRequest) {
   const user = await requireAuth();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -17,28 +18,22 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status");
-  const category_id = searchParams.get("category_id");
   const limit = parseInt(searchParams.get("limit") || "50");
 
   let query = supabase
-    .from("transactions")
+    .from("events")
     .select(
       `
       *,
-      categories (*),
-      profiles (*)
+      created_by:profiles(name, email)
     `
-    );
+    )
+    .order("start_time", { ascending: false })
+    .limit(limit);
 
   if (status) {
     query = query.eq("status", status);
   }
-
-  if (category_id) {
-    query = query.eq("category_id", category_id);
-  }
-
-  query = query.order("created_at", { ascending: false }).limit(limit);
 
   const { data, error } = await query;
 
@@ -46,10 +41,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ transactions: data });
+  return NextResponse.json({ events: data });
 }
 
-export async function POST(request: Request) {
+// Create a new event (admin/treasurer only)
+export async function POST(request: NextRequest) {
   const user = await requireAuth();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -62,38 +58,43 @@ export async function POST(request: Request) {
 
   const body = await request.json();
   const {
-    amount,
+    title,
     description,
-    category_id,
-    merchant,
-    receipt_url,
+    start_time,
+    end_time,
+    location,
+    password,
+    capacity,
+    category,
   } = body;
 
-  if (!amount || !description || !category_id) {
+  if (!title || !start_time) {
     return NextResponse.json(
-      { error: "Missing required fields: amount, description, category_id" },
+      { error: "Missing required fields: title, start_time" },
       { status: 400 }
     );
   }
 
   const { data, error } = await supabase
-    .from("transactions")
+    .from("events")
     .insert([
       {
-        amount,
+        title,
         description,
-        category_id,
-        user_id: user.id,
-        merchant,
-        receipt_url,
-        status: "pending",
+        start_time,
+        end_time,
+        location,
+        password,
+        capacity,
+        category,
+        created_by: user.id,
+        status: "active",
       },
     ])
     .select(
       `
       *,
-      categories (*),
-      profiles (*)
+      created_by:profiles(name, email)
     `
     )
     .single();
@@ -102,13 +103,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  await supabase.from("audit_logs").insert({
-    action: "transaction_created",
-    table_name: "transactions",
-    record_id: data.id,
-    user_id: user.id,
-    new_data: data,
-  });
-
-  return NextResponse.json({ transaction: data }, { status: 201 });
+  return NextResponse.json({ event: data }, { status: 201 });
 }

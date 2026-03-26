@@ -42,6 +42,7 @@ export default function ClientDashboard() {
       category: { name: "Snacks", slug: "snacks", icon: "snack" },
       created_at: "2026-03-25T10:00:00Z",
       merchant: "Costco",
+      status: "approved",
     },
     {
       id: "2",
@@ -50,6 +51,7 @@ export default function ClientDashboard() {
       category: { name: "Activities", slug: "activities", icon: "activity" },
       created_at: "2026-03-24T14:30:00Z",
       merchant: "Office Depot",
+      status: "pending",
     },
     {
       id: "3",
@@ -58,20 +60,21 @@ export default function ClientDashboard() {
       category: { name: "Prizes", slug: "prizes", icon: "prize" },
       created_at: "2026-03-23T16:45:00Z",
       merchant: "Amazon",
+      status: "approved",
     },
   ];
 
   const displayTransactions = loading ? [] : transactions.length > 0 ? transactions : mockTransactions;
 
   const totalSpent = displayTransactions.reduce((sum, t) => sum + t.amount, 0);
-  const pendingCount = displayTransactions.filter((t: any) => t.status === "pending").length;
-  const approvedCount = displayTransactions.filter((t: any) => t.status === "approved").length;
+  const pendingCount = displayTransactions.filter((t) => t.status === "pending").length;
+  const approvedCount = displayTransactions.filter((t) => t.status === "approved").length;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-        <p className="text-slate-600">Manage your club's finances</p>
+        <p className="text-slate-600">Manage your club&apos;s finances</p>
       </div>
 
       {/* Stats */}
