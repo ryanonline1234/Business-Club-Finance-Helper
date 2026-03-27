@@ -1,39 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
 import { StatCard } from "./StatCard";
 import TransactionForm from "./TransactionForm";
 import TransactionList from "./TransactionList";
 
 export default function ClientDashboard() {
-  const { data: session, status } = useSession();
-  const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Temporary: Using mock data until backend is ready
   useEffect(() => {
-    const fetchTransactions = async () => {
-      try {
-        const response = await fetch("/api/transactions?limit=10");
-        if (response.ok) {
-          const data = await response.json();
-          setTransactions(data.transactions || []);
-        }
-      } catch (error) {
-        console.error("Failed to fetch transactions:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    setLoading(false);
+  }, []);
 
-    if (status === "authenticated") {
-      fetchTransactions();
-    } else {
-      setLoading(false);
-    }
-  }, [status]);
-
-  // Mock data for development when not authenticated
+  // Always use mock data for now (until backend is ready)
   const mockTransactions = [
     {
       id: "1",
@@ -64,7 +44,7 @@ export default function ClientDashboard() {
     },
   ];
 
-  const displayTransactions = loading ? [] : transactions.length > 0 ? transactions : mockTransactions;
+  const displayTransactions = mockTransactions;
 
   const totalSpent = displayTransactions.reduce((sum, t) => sum + t.amount, 0);
   const pendingCount = displayTransactions.filter((t) => t.status === "pending").length;

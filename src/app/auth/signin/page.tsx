@@ -14,20 +14,17 @@ export default function SignInPage() {
     setError("");
 
     try {
-      const result = await signIn("google", {
+      // With redirect: true, signIn redirects and never returns
+      // If we get here, there was a configuration issue
+      await signIn("google", {
         callbackUrl: "/dashboard",
-        redirect: false,
+        redirect: true,
       });
-
-      if (result?.error) {
-        setError(result.error);
-      } else if (result?.url) {
-        router.push(result.url);
-      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to sign in";
       setError(message);
     } finally {
+      // This won't be reached on success due to redirect
       setLoading(false);
     }
   };

@@ -1,11 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useSession } from "next-auth/react";
 import { toast } from "react-hot-toast";
 
 export default function TransactionForm() {
-  const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
@@ -22,11 +20,15 @@ export default function TransactionForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!session) {
-      toast.error("Please sign in first");
-      return;
-    }
 
+    // TODO: Connect to backend after authentication is set up
+    toast("Transaction submission coming soon!", {
+      icon: "🚀",
+    });
+
+    return;
+
+    // Backend integration will go here
     setLoading(true);
 
     try {
@@ -55,8 +57,8 @@ export default function TransactionForm() {
       setCategoryId("");
       setMerchant("");
       setReceiptUrl("");
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Error creating transaction";
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? (err as Error).message : "Error creating transaction";
       toast.error(errorMessage);
     } finally {
       setLoading(false);
