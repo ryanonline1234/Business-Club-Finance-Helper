@@ -1,9 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient, parseCookieHeader, serializeCookieHeader } from '@supabase/ssr';
 
-const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
-const supabaseServiceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
+// Trim whitespace/newlines — a common copy-paste mistake when setting Vercel env vars
+const supabaseUrl = (import.meta.env.PUBLIC_SUPABASE_URL as string).trim();
+const supabaseAnonKey = (import.meta.env.PUBLIC_SUPABASE_ANON_KEY as string).trim();
+const supabaseServiceKey = (import.meta.env.SUPABASE_SERVICE_ROLE_KEY as string).trim();
 
 // Admin client — bypasses RLS, use only in server API endpoints
 export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
