@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from './supabase';
+import { createSupabaseServerClient, supabaseAdmin } from './supabase';
 
 export interface SessionUser {
   id: string;
@@ -22,7 +22,8 @@ export async function getSession(
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return null;
 
-  const { data: profile } = await supabase
+  // Use admin client so RLS never silently blocks the profile fetch
+  const { data: profile } = await supabaseAdmin
     .from('profiles')
     .select('name, role')
     .eq('id', user.id)
