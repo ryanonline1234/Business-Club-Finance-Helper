@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { createSupabaseServerClient } from '../../../lib/supabase';
+import { createSupabaseServerClient, supabaseAdmin } from '../../../lib/supabase';
 
 export const GET: APIRoute = async ({ request }) => {
   const siteUrl = import.meta.env.SITE_URL;
@@ -25,19 +25,32 @@ export const GET: APIRoute = async ({ request }) => {
     });
   }
 
-  // Verify the user has a profile in our database
-  const { data: profile, error: profileError } = await supabase
+  const userId = data.user.id;
+  const userEmail = data.user.email ?? '';
+  const userName = data.user.user_metadata?.full_name
+    ?? data.user.user_metadata?.name
+    ?? userEmail.split('@')[0];
+
+  // Use admin client to bypass RLS — check if profile exists
+  const { data: profile } = await supabaseAdmin
     .from('profiles')
     .select('id')
-    .eq('id', data.user.id)
-    .single();
+    .eq('id', userId)
+    .maybeSingle();
 
-  if (profileError || !profile) {
-    await supabase.auth.signOut();
-    return new Response(null, {
-      status: 302,
-      headers: { location: `${siteUrl}/login?error=unauthorized` },
-    });
+  // If the trigger didn't create it yet, create it now
+  if (!profile) {
+    const { error: insertError } = await supabaseAdmin
+      .from('profiles')
+      .insert({ id: userId, email: userEmail, name: userName, role: 'member' });
+
+    if (insertError) {
+      await supabase.auth.signOut();
+      return new Response(null, {
+        status: 302,
+        headers: { location: `${siteUrl}/login?error=auth-error` },
+      });
+    }
   }
 
   responseHeaders.set('location', `${siteUrl}/calendar`);
