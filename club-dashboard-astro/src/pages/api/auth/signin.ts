@@ -5,10 +5,11 @@ export const GET: APIRoute = async ({ request }) => {
   const responseHeaders = new Headers();
   const supabase = createSupabaseServerClient(request, responseHeaders);
 
-  // Always derive the callback URL from the current request origin so this
-  // works on every Vercel deployment (production + every preview URL).
+  // Always use SITE_URL for the OAuth callback so it matches the approved
+  // redirect URL in Supabase — preview deployments share the same callback.
   const origin = new URL(request.url).origin;
-  const redirectTo = `${origin}/api/auth/callback`;
+  const callbackBase = import.meta.env.SITE_URL ?? origin;
+  const redirectTo = `${callbackBase}/api/auth/callback`;
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
