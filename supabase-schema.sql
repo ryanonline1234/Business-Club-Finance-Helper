@@ -227,6 +227,32 @@ create policy "Admin/Treasurer can manage all attendance"
     select id from public.profiles where role in ('admin', 'treasurer')
   ));
 
+-- Announcements table
+create table if not exists public.announcements (
+  id uuid default uuid_generate_v4() primary key,
+  title text not null,
+  body text not null,
+  author_id uuid references public.profiles,
+  author_name text,
+  created_at timestamptz default now()
+);
+
+alter table public.announcements enable row level security;
+
+create policy "Anyone authenticated can read announcements"
+  on public.announcements for select
+  using (auth.uid() is not null);
+
+create policy "Admin/Treasurer can manage announcements"
+  on public.announcements for all
+  using (auth.uid() in (
+    select id from public.profiles where role in ('admin', 'treasurer')
+  ));
+
+-- Unique constraint on attendance to prevent duplicate check-ins
+alter table public.attendance
+  add constraint attendance_event_member_unique unique (event_id, member_id);
+
 -- Indexes for performance
 create index if not exists idx_transactions_user_id on public.transactions(user_id);
 create index if not exists idx_transactions_category_id on public.transactions(category_id);

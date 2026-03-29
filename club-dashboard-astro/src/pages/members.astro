@@ -4,11 +4,13 @@ import { requireAuth } from '../lib/auth';
 import { supabaseAdmin } from '../lib/supabase';
 
 const user = await requireAuth(Astro.request, Astro.response.headers, Astro.redirect);
+const isAdmin = user.role === 'admin';
 
 const { data: members } = await supabaseAdmin
   .from('profiles')
   .select('id, name, email, role, created_at')
-  .order('role', { ascending: true });
+  .order('role', { ascending: true })
+  .order('name', { ascending: true });
 
 const avatarColors: Record<string, [string, string]> = {
   admin:     ['#FFF3CC', '#7A5500'],
@@ -16,35 +18,75 @@ const avatarColors: Record<string, [string, string]> = {
   member:    ['#E6F1FB', '#185FA5'],
 };
 
-function initials(name: string | null): string {
-  if (!name) return '?';
-  return name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+function initials(name: string | null, email: string): string {
+  const src = name ?? email ?? '?';
+  return src.split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
 }
 ---
-<DashboardLayout title="Officer Roster" user={user}>
+<DashboardLayout title="Members" user={user}>
+
   <div class="members-header">
     <div class="members-count">{(members ?? []).length} members · Spring 2026</div>
   </div>
 
-  {members && members.length > 0 ? (
-    <div class="members-grid">
-      {members.map(m => {
-        const [bg, tc] = avatarColors[m.role] ?? ['#E6F1FB', '#185FA5'];
-        return (
-          <div class="member-card">
-            <div class="avatar" style={`background:${bg};color:${tc}`}>
-              {initials(m.name)}
-            </div>
-            <div>
-              <div class="member-name">{m.name ?? m.email}</div>
-              <div class="member-email">{m.email}</div>
-              <span class={`role-tag ${m.role}`}>{m.role}</span>
-            </div>
+  <div class="members-grid" id="members-grid">
+    {(members ?? []).length === 0 ? (
+      <div class="empty-state" style="grid-column:1/-1">No members found.</div>
+    ) : (members ?? []).map(m => {
+      const [bg, tc] = avatarColors[m.role] ?? avatarColors.member;
+      return (
+        <div class="member-card">
+          <div class="avatar" style={`background:${bg};color:${tc}`}>
+            {initials(m.name, m.email)}
           </div>
-        );
-      })}
-    </div>
-  ) : (
-    <div class="empty-state">No members found</div>
-  )}
+          <div style="flex:1;min-width:0">
+            <div class="member-name">{m.name ?? m.email}</div>
+            <div class="member-email">{m.email}</div>
+            {isAdmin ? (
+              <select class="role-select" data-member-id={m.id} data-current-role={m.role}>
+                <option value="member"    selected={m.role === 'member'}>Member</option>
+                <option value="treasurer" selected={m.role === 'treasurer'}>Treasurer</option>
+                <option value="admin"     selected={m.role === 'admin'}>Admin</option>
+              </select>
+            ) : (
+              <span class={`role-tag ${m.role}`}>{m.role}</span>
+            )}
+          </div>
+        </div>
+      );
+    })}
+  </div>
+
 </DashboardLayout>
+
+<script define:vars={{ isAdmin }}>
+if (isAdmin) {
+  document.querySelectorAll('.role-select').forEach(sel => {
+    // Ensure correct initial value (SSR `selected` isn't always reflected)
+    sel.value = sel.dataset.currentRole;
+
+    sel.addEventListener('change', async () => {
+      const memberId = sel.dataset.memberId;
+      const newRole  = sel.value;
+      const prev     = sel.dataset.currentRole;
+
+      sel.disabled = true;
+      const res = await fetch(`/api/members/${memberId}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ role: newRole }),
+      });
+      sel.disabled = false;
+
+      if (res.ok) {
+        sel.dataset.currentRole = newRole;
+        window.location.reload(); // reload to refresh avatar colours
+      } else {
+        const { error } = await res.json().catch(() => ({}));
+        alert(error ?? 'Failed to update role.');
+        sel.value = prev;
+      }
+    });
+  });
+}
+</script>

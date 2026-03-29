@@ -4,6 +4,7 @@ import { requireAuth } from '../lib/auth';
 import { supabaseAdmin } from '../lib/supabase';
 
 const user = await requireAuth(Astro.request, Astro.response.headers, Astro.redirect);
+const isOfficer = ['admin', 'treasurer'].includes(user.role);
 
 const { data: events } = await supabaseAdmin
   .from('events')
@@ -14,11 +15,17 @@ const { data: events } = await supabaseAdmin
 const eventsJson = JSON.stringify(events ?? []);
 ---
 <DashboardLayout title="Event Calendar" user={user}>
+
   <div class="cal-header">
     <div class="cal-month" id="cal-month-label"></div>
-    <div class="cal-nav">
-      <button class="cal-btn" id="prev-month">&#8249;</button>
-      <button class="cal-btn" id="next-month">&#8250;</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      {isOfficer && (
+        <button class="add-btn" id="open-event-modal" style="margin-bottom:0">+ New Event</button>
+      )}
+      <div class="cal-nav">
+        <button class="cal-btn" id="prev-month">&#8249;</button>
+        <button class="cal-btn" id="next-month">&#8250;</button>
+      </div>
     </div>
   </div>
 
@@ -38,10 +45,61 @@ const eventsJson = JSON.stringify(events ?? []);
       <button class="modal-close" id="modal-close-btn">Close</button>
     </div>
   </div>
+
+  <!-- New Event Modal (officer only) -->
+  {isOfficer && (
+    <div class="form-modal hidden" id="event-modal">
+      <div class="form-card">
+        <div class="form-card-title">Create Event</div>
+        <div class="form-row">
+          <label class="form-label">Title *</label>
+          <input class="form-input" id="ev-title" placeholder="e.g. Weekly Meeting" />
+        </div>
+        <div class="form-row">
+          <label class="form-label">Description</label>
+          <textarea class="form-textarea" id="ev-desc" placeholder="Optional details…" rows="2"></textarea>
+        </div>
+        <div class="form-row-2">
+          <div class="form-row" style="margin-bottom:0">
+            <label class="form-label">Start *</label>
+            <input class="form-input" id="ev-start" type="datetime-local" />
+          </div>
+          <div class="form-row" style="margin-bottom:0">
+            <label class="form-label">End</label>
+            <input class="form-input" id="ev-end" type="datetime-local" />
+          </div>
+        </div>
+        <div class="form-row-2">
+          <div class="form-row" style="margin-bottom:0">
+            <label class="form-label">Location</label>
+            <input class="form-input" id="ev-location" placeholder="e.g. Room 201" />
+          </div>
+          <div class="form-row" style="margin-bottom:0">
+            <label class="form-label">Type</label>
+            <select class="form-select" id="ev-category">
+              <option value="meeting">Meeting</option>
+              <option value="event">Event</option>
+              <option value="deadline">Deadline</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Check-in Password (optional)</label>
+          <input class="form-input" id="ev-password" placeholder="Members enter this to check in" />
+        </div>
+        <div class="form-error hidden" id="ev-error"></div>
+        <div class="form-actions">
+          <button class="form-cancel" id="close-event-modal">Cancel</button>
+          <button class="form-submit" id="submit-event">Create</button>
+        </div>
+      </div>
+    </div>
+  )}
+
 </DashboardLayout>
 
-<script define:vars={{ eventsJson }}>
-const EVENTS = JSON.parse(eventsJson).map(e => ({
+<script define:vars={{ eventsJson, isOfficer }}>
+let EVENTS = JSON.parse(eventsJson).map(e => ({
   ...e,
   date: e.start_time ? e.start_time.split('T')[0] : null,
   time: e.start_time
@@ -95,13 +153,10 @@ function renderCalendar() {
     });
     el.innerHTML = html;
 
-    // QR click on event chips
     el.querySelectorAll('.ev').forEach(chip => {
       chip.addEventListener('click', async (ev) => {
         ev.stopPropagation();
-        const id = chip.dataset.id;
-        const title = chip.dataset.title;
-        await openQRModal(id, title);
+        await openQRModal(chip.dataset.id, chip.dataset.title);
       });
     });
 
@@ -161,21 +216,85 @@ async function openQRModal(eventId, title) {
 }
 
 document.getElementById('prev-month').addEventListener('click', () => {
-  viewMonth--;
-  if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+  viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; }
   renderCalendar();
 });
 document.getElementById('next-month').addEventListener('click', () => {
-  viewMonth++;
-  if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+  viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; }
   renderCalendar();
 });
 document.getElementById('modal-close-btn').addEventListener('click', () => {
   document.getElementById('qr-modal').classList.add('hidden');
 });
-document.getElementById('qr-modal').addEventListener('click', (e) => {
+document.getElementById('qr-modal').addEventListener('click', e => {
   if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
 });
 
 renderCalendar();
+
+// ── Event creation ────────────────────────────────────────────
+if (isOfficer) {
+  document.getElementById('open-event-modal')?.addEventListener('click', () => {
+    document.getElementById('event-modal').classList.remove('hidden');
+  });
+  document.getElementById('close-event-modal')?.addEventListener('click', () => {
+    document.getElementById('event-modal').classList.add('hidden');
+  });
+  document.getElementById('event-modal')?.addEventListener('click', e => {
+    if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+  });
+
+  document.getElementById('submit-event')?.addEventListener('click', async () => {
+    const errEl = document.getElementById('ev-error');
+    errEl.classList.add('hidden');
+
+    const title    = document.getElementById('ev-title').value.trim();
+    const start    = document.getElementById('ev-start').value;
+    const end      = document.getElementById('ev-end').value;
+    const desc     = document.getElementById('ev-desc').value.trim();
+    const location = document.getElementById('ev-location').value.trim();
+    const category = document.getElementById('ev-category').value;
+    const password = document.getElementById('ev-password').value.trim();
+
+    if (!title || !start) {
+      errEl.textContent = 'Title and start time are required.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    const btn = document.getElementById('submit-event');
+    btn.disabled = true; btn.textContent = 'Creating…';
+
+    const res = await fetch('/api/events/create', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title, start_time: start, end_time: end || null, description: desc, location, category, password }),
+    });
+
+    btn.disabled = false; btn.textContent = 'Create';
+
+    if (!res.ok) {
+      const { error } = await res.json();
+      errEl.textContent = error ?? 'Failed to create event.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    const { data } = await res.json();
+    EVENTS.push({
+      ...data,
+      date: data.start_time.split('T')[0],
+      time: new Date(data.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) +
+        (data.location ? ' · ' + data.location : ''),
+      type: data.category || 'meeting',
+    });
+
+    document.getElementById('event-modal').classList.add('hidden');
+    ['ev-title','ev-start','ev-end','ev-desc','ev-location','ev-password'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = '';
+    });
+    document.getElementById('ev-category').value = 'meeting';
+    renderCalendar();
+  });
+}
 </script>

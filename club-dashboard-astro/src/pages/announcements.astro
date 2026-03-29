@@ -4,31 +4,169 @@ import { requireAuth } from '../lib/auth';
 import { supabaseAdmin } from '../lib/supabase';
 
 const user = await requireAuth(Astro.request, Astro.response.headers, Astro.redirect);
+const isOfficer = ['admin', 'treasurer'].includes(user.role);
 
-// announcements table may not exist yet — gracefully handle the error
 const { data: announcements, error } = await supabaseAdmin
   .from('announcements')
   .select('id, title, body, created_at, author_name')
   .order('created_at', { ascending: false })
-  .limit(20);
+  .limit(30);
 
 const items = announcements ?? [];
+const announcementsJson = JSON.stringify(items);
 ---
 <DashboardLayout title="Announcements" user={user}>
-  <div class="announce-list">
-    {items.length > 0 ? items.map(a => (
-      <div class="announce-card">
-        <div class="announce-title">{a.title}</div>
+
+  <div class="page-header">
+    <div class="section-label">{items.length} announcement{items.length !== 1 ? 's' : ''}</div>
+    {isOfficer && (
+      <button class="add-btn" id="open-announce-modal">+ Post Announcement</button>
+    )}
+  </div>
+
+  <div class="announce-list" id="announce-list">
+    {error ? (
+      <div class="empty-state">Announcements table not set up yet — run the migration SQL in Supabase.</div>
+    ) : items.length === 0 ? (
+      <div class="empty-state">No announcements yet.</div>
+    ) : items.map(a => (
+      <div class="announce-card" data-id={a.id}>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div class="announce-title">{a.title}</div>
+          {isOfficer && (
+            <button class="tx-btn delete" data-delete-id={a.id} style="flex-shrink:0;margin-left:8px">Delete</button>
+          )}
+        </div>
         <div class="announce-body">{a.body}</div>
         <div class="announce-meta">
           Posted by {a.author_name ?? 'Officer'} ·{' '}
           {new Date(a.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
         </div>
       </div>
-    )) : (
-      <div class="empty-state">
-        {error ? 'Announcements table not set up yet — run the migration in Supabase.' : 'No announcements yet.'}
-      </div>
-    )}
+    ))}
   </div>
+
+  <!-- Post Announcement Modal -->
+  {isOfficer && (
+    <div class="form-modal hidden" id="announce-modal">
+      <div class="form-card">
+        <div class="form-card-title">Post Announcement</div>
+        <div class="form-row">
+          <label class="form-label">Title *</label>
+          <input class="form-input" id="ann-title" placeholder="e.g. Meeting this Friday" />
+        </div>
+        <div class="form-row">
+          <label class="form-label">Message *</label>
+          <textarea class="form-textarea" id="ann-body" placeholder="Write your announcement…" rows="5"></textarea>
+        </div>
+        <div class="form-error hidden" id="ann-error"></div>
+        <div class="form-actions">
+          <button class="form-cancel" id="close-announce-modal">Cancel</button>
+          <button class="form-submit" id="submit-announce">Post</button>
+        </div>
+      </div>
+    </div>
+  )}
+
 </DashboardLayout>
+
+<script define:vars={{ announcementsJson, isOfficer }}>
+let ALL = JSON.parse(announcementsJson);
+
+function renderList() {
+  const list = document.getElementById('announce-list');
+  if (!ALL.length) {
+    list.innerHTML = '<div class="empty-state">No announcements yet.</div>';
+    return;
+  }
+  list.innerHTML = ALL.map(a => {
+    const date = new Date(a.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const delBtn = isOfficer
+      ? `<button class="tx-btn delete" data-delete-id="${a.id}" style="flex-shrink:0;margin-left:8px">Delete</button>`
+      : '';
+    return `<div class="announce-card" data-id="${a.id}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div class="announce-title">${a.title}</div>
+        ${delBtn}
+      </div>
+      <div class="announce-body">${a.body}</div>
+      <div class="announce-meta">Posted by ${a.author_name ?? 'Officer'} · ${date}</div>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('[data-delete-id]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Delete this announcement?')) return;
+      const id = btn.dataset.deleteId;
+      const res = await fetch(`/api/announcements/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        ALL = ALL.filter(a => a.id !== id);
+        renderList();
+      }
+    });
+  });
+}
+
+// Wire initial delete buttons (SSR-rendered)
+document.querySelectorAll('[data-delete-id]').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    if (!confirm('Delete this announcement?')) return;
+    const id = btn.dataset.deleteId;
+    const res = await fetch(`/api/announcements/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      ALL = ALL.filter(a => a.id !== id);
+      renderList();
+    }
+  });
+});
+
+if (isOfficer) {
+  document.getElementById('open-announce-modal')?.addEventListener('click', () => {
+    document.getElementById('announce-modal').classList.remove('hidden');
+  });
+  document.getElementById('close-announce-modal')?.addEventListener('click', () => {
+    document.getElementById('announce-modal').classList.add('hidden');
+  });
+  document.getElementById('announce-modal')?.addEventListener('click', e => {
+    if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+  });
+
+  document.getElementById('submit-announce')?.addEventListener('click', async () => {
+    const errEl = document.getElementById('ann-error');
+    errEl.classList.add('hidden');
+
+    const title = document.getElementById('ann-title').value.trim();
+    const body  = document.getElementById('ann-body').value.trim();
+    if (!title || !body) {
+      errEl.textContent = 'Title and message are required.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    const btn = document.getElementById('submit-announce');
+    btn.disabled = true; btn.textContent = 'Posting…';
+
+    const res = await fetch('/api/announcements/create', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title, body }),
+    });
+
+    btn.disabled = false; btn.textContent = 'Post';
+
+    if (!res.ok) {
+      const { error } = await res.json();
+      errEl.textContent = error ?? 'Failed to post.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    const { data } = await res.json();
+    ALL.unshift(data);
+    document.getElementById('announce-modal').classList.add('hidden');
+    document.getElementById('ann-title').value = '';
+    document.getElementById('ann-body').value = '';
+    renderList();
+  });
+}
+</script>
