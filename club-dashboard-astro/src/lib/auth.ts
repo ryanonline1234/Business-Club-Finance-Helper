@@ -47,8 +47,8 @@ export async function requireAuth(
 ): Promise<SessionUser> {
   const user = await getSession(request, responseHeaders);
   if (!user) {
-    const origin = new URL(request.url).origin;
-    throw redirect(`${origin}/login`);
+    const siteUrl = import.meta.env.SITE_URL ?? new URL(request.url).origin;
+    throw redirect(`${siteUrl}/login`);
   }
   return user;
 }

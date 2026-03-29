@@ -3,9 +3,10 @@ import { getSession } from '../lib/auth';
 
 const user = await getSession(Astro.request, Astro.response.headers);
 
+const siteUrl = import.meta.env.SITE_URL;
 if (user) {
-  return Astro.redirect('/calendar');
+  return Astro.redirect(`${siteUrl}/calendar`);
 } else {
-  return Astro.redirect('/login');
+  return Astro.redirect(`${siteUrl}/login`);
 }
 ---

@@ -2,15 +2,14 @@ import type { APIRoute } from 'astro';
 import { createSupabaseServerClient } from '../../../lib/supabase';
 
 export const GET: APIRoute = async ({ request }) => {
+  const siteUrl = import.meta.env.SITE_URL;
   const url = new URL(request.url);
-  const origin = url.origin;
   const code = url.searchParams.get('code');
-  const next = url.searchParams.get('next') ?? '/calendar';
 
   if (!code) {
     return new Response(null, {
       status: 302,
-      headers: { location: `${origin}/login?error=auth-error` },
+      headers: { location: `${siteUrl}/login?error=auth-error` },
     });
   }
 
@@ -22,7 +21,7 @@ export const GET: APIRoute = async ({ request }) => {
   if (error || !data.user) {
     return new Response(null, {
       status: 302,
-      headers: { location: `${origin}/login?error=auth-error` },
+      headers: { location: `${siteUrl}/login?error=auth-error` },
     });
   }
 
@@ -37,12 +36,10 @@ export const GET: APIRoute = async ({ request }) => {
     await supabase.auth.signOut();
     return new Response(null, {
       status: 302,
-      headers: { location: `${origin}/login?error=unauthorized` },
+      headers: { location: `${siteUrl}/login?error=unauthorized` },
     });
   }
 
-  // Session cookies are already written into responseHeaders by the SSR client.
-  // Use an absolute URL so the redirect always lands on the correct domain.
-  responseHeaders.set('location', `${origin}${next}`);
+  responseHeaders.set('location', `${siteUrl}/calendar`);
   return new Response(null, { status: 302, headers: responseHeaders });
 };
