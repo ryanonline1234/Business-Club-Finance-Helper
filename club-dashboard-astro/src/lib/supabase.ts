@@ -23,8 +23,9 @@ export function createSupabaseServerClient(request: Request, responseHeaders: He
             'set-cookie',
             serializeCookieHeader(name, value, {
               ...options,
-              // Ensure cookies are accessible on production (https) and
-              // on every Vercel preview domain.
+              // path: '/' ensures the PKCE code-verifier cookie is sent to
+              // ALL paths including /api/auth/callback, not just the signin path.
+              path: '/',
               secure: true,
               sameSite: 'lax',
               httpOnly: true,

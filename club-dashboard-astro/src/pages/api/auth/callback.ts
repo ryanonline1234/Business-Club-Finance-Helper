@@ -19,6 +19,14 @@ export const GET: APIRoute = async ({ request }) => {
   const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error || !data.user) {
+    // Log to Vercel function logs for server-side visibility
+    console.error('[auth/callback] exchangeCodeForSession failed:', {
+      message: error?.message,
+      status: error?.status,
+      name: error?.name,
+      hasCode: !!code,
+      cookieHeader: request.headers.get('cookie')?.replace(/=([^;]+)/g, '=[redacted]') ?? 'none',
+    });
     const msg = encodeURIComponent(error?.message ?? 'No user returned');
     return new Response(null, {
       status: 302,
