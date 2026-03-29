@@ -19,9 +19,10 @@ export const GET: APIRoute = async ({ request }) => {
   const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error || !data.user) {
+    const msg = encodeURIComponent(error?.message ?? 'No user returned');
     return new Response(null, {
       status: 302,
-      headers: { location: `${siteUrl}/login?error=auth-error` },
+      headers: { location: `${siteUrl}/login?error=auth-error&detail=${msg}` },
     });
   }
 
