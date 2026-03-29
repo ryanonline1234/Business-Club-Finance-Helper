@@ -1,0 +1,182 @@
+---
+import DashboardLayout from '../layouts/DashboardLayout.astro';
+import { requireAuth } from '../lib/auth';
+import { supabaseAdmin } from '../lib/supabase';
+
+const responseHeaders = new Headers();
+const user = await requireAuth(Astro.request, responseHeaders, Astro.redirect);
+
+const { data: events } = await supabaseAdmin
+  .from('events')
+  .select('id, title, start_time, end_time, location, category, status')
+  .eq('status', 'active')
+  .order('start_time', { ascending: true });
+
+const eventsJson = JSON.stringify(events ?? []);
+---
+<DashboardLayout title="Event Calendar" user={user}>
+  <div class="cal-header">
+    <div class="cal-month" id="cal-month-label"></div>
+    <div class="cal-nav">
+      <button class="cal-btn" id="prev-month">&#8249;</button>
+      <button class="cal-btn" id="next-month">&#8250;</button>
+    </div>
+  </div>
+
+  <div class="cal-grid" id="cal-grid"></div>
+
+  <div class="events-section">
+    <div class="section-label">Upcoming</div>
+    <div id="upcoming-list"></div>
+  </div>
+
+  <!-- QR Modal -->
+  <div class="modal-overlay hidden" id="qr-modal">
+    <div class="modal-card">
+      <div class="modal-title" id="modal-event-title"></div>
+      <div class="modal-sub">Scan to check in</div>
+      <img class="modal-qr" id="modal-qr-img" src="" alt="QR Code" />
+      <button class="modal-close" id="modal-close-btn">Close</button>
+    </div>
+  </div>
+</DashboardLayout>
+
+<script define:vars={{ eventsJson }}>
+const EVENTS = JSON.parse(eventsJson).map(e => ({
+  ...e,
+  date: e.start_time ? e.start_time.split('T')[0] : null,
+  time: e.start_time
+    ? new Date(e.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) +
+      (e.location ? ' · ' + e.location : '')
+    : '',
+  type: e.category || 'meeting',
+}));
+
+const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const dows = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+const today = new Date();
+let viewYear = today.getFullYear();
+let viewMonth = today.getMonth();
+
+function renderCalendar() {
+  const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  document.getElementById('cal-month-label').textContent = months[viewMonth] + ' ' + viewYear;
+
+  const grid = document.getElementById('cal-grid');
+  grid.innerHTML = '';
+
+  dows.forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'cal-dow';
+    el.textContent = d;
+    grid.appendChild(el);
+  });
+
+  const prevDays = new Date(viewYear, viewMonth, 0).getDate();
+  for (let i = firstDay - 1; i >= 0; i--) {
+    const el = document.createElement('div');
+    el.className = 'cal-day other-month';
+    el.innerHTML = `<div class="day-num">${prevDays - i}</div>`;
+    grid.appendChild(el);
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const el = document.createElement('div');
+    el.className = 'cal-day';
+    const ds = `${viewYear}-${String(viewMonth + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday = d === today.getDate() && viewMonth === today.getMonth() && viewYear === today.getFullYear();
+    if (isToday) el.classList.add('today');
+
+    const dayEvents = EVENTS.filter(e => e.date === ds);
+    let html = `<div class="day-num">${d}</div>`;
+    dayEvents.forEach(e => {
+      const type = ['meeting','event','deadline'].includes(e.type) ? e.type : 'meeting';
+      html += `<div class="ev ${type}" data-id="${e.id}" data-title="${e.title}">${e.title}</div>`;
+    });
+    el.innerHTML = html;
+
+    // QR click on event chips
+    el.querySelectorAll('.ev').forEach(chip => {
+      chip.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        const id = chip.dataset.id;
+        const title = chip.dataset.title;
+        await openQRModal(id, title);
+      });
+    });
+
+    grid.appendChild(el);
+  }
+
+  const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
+  for (let i = 1; i <= totalCells - firstDay - daysInMonth; i++) {
+    const el = document.createElement('div');
+    el.className = 'cal-day other-month';
+    el.innerHTML = `<div class="day-num">${i}</div>`;
+    grid.appendChild(el);
+  }
+
+  renderUpcoming();
+}
+
+function renderUpcoming() {
+  const now = new Date(); now.setHours(0,0,0,0);
+  const upcoming = EVENTS.filter(e => e.date && new Date(e.date) >= now).slice(0, 4);
+  const list = document.getElementById('upcoming-list');
+
+  if (!upcoming.length) {
+    list.innerHTML = '<div class="empty-state">No upcoming events</div>';
+    return;
+  }
+
+  list.innerHTML = upcoming.map(e => {
+    const d = new Date(e.date);
+    const typeColors = {
+      meeting:  ['#FFF3CC','#7A5500'],
+      event:    ['#E6F1FB','#185FA5'],
+      deadline: ['#FCEBEB','#A32D2D'],
+    };
+    const [bg, tc] = typeColors[e.type] ?? typeColors.meeting;
+    return `<div class="event-row">
+      <div class="event-date-box">
+        <div class="eday">${d.getDate()}</div>
+        <div class="emon">${months[d.getMonth()].slice(0,3)}</div>
+      </div>
+      <div class="event-info">
+        <div class="event-name">${e.title}</div>
+        <div class="event-meta">${e.time}</div>
+      </div>
+      <span class="ev-tag" style="background:${bg};color:${tc}">${e.type}</span>
+    </div>`;
+  }).join('');
+}
+
+async function openQRModal(eventId, title) {
+  const res = await fetch(`/api/events/${eventId}/qr`);
+  if (!res.ok) return;
+  const { qr } = await res.json();
+  document.getElementById('modal-event-title').textContent = title;
+  document.getElementById('modal-qr-img').src = qr;
+  document.getElementById('qr-modal').classList.remove('hidden');
+}
+
+document.getElementById('prev-month').addEventListener('click', () => {
+  viewMonth--;
+  if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+  renderCalendar();
+});
+document.getElementById('next-month').addEventListener('click', () => {
+  viewMonth++;
+  if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+  renderCalendar();
+});
+document.getElementById('modal-close-btn').addEventListener('click', () => {
+  document.getElementById('qr-modal').classList.add('hidden');
+});
+document.getElementById('qr-modal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+});
+
+renderCalendar();
+</script>

@@ -1,0 +1,51 @@
+---
+import DashboardLayout from '../layouts/DashboardLayout.astro';
+import { requireAuth } from '../lib/auth';
+import { supabaseAdmin } from '../lib/supabase';
+
+const responseHeaders = new Headers();
+const user = await requireAuth(Astro.request, responseHeaders, Astro.redirect);
+
+const { data: members } = await supabaseAdmin
+  .from('profiles')
+  .select('id, name, email, role, created_at')
+  .order('role', { ascending: true });
+
+const avatarColors: Record<string, [string, string]> = {
+  admin:     ['#FFF3CC', '#7A5500'],
+  treasurer: ['#FAEEDA', '#854F0B'],
+  member:    ['#E6F1FB', '#185FA5'],
+};
+
+function initials(name: string | null): string {
+  if (!name) return '?';
+  return name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+}
+---
+<DashboardLayout title="Officer Roster" user={user}>
+  <div class="members-header">
+    <div class="members-count">{(members ?? []).length} members · Spring 2026</div>
+  </div>
+
+  {members && members.length > 0 ? (
+    <div class="members-grid">
+      {members.map(m => {
+        const [bg, tc] = avatarColors[m.role] ?? ['#E6F1FB', '#185FA5'];
+        return (
+          <div class="member-card">
+            <div class="avatar" style={`background:${bg};color:${tc}`}>
+              {initials(m.name)}
+            </div>
+            <div>
+              <div class="member-name">{m.name ?? m.email}</div>
+              <div class="member-email">{m.email}</div>
+              <span class={`role-tag ${m.role}`}>{m.role}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  ) : (
+    <div class="empty-state">No members found</div>
+  )}
+</DashboardLayout>

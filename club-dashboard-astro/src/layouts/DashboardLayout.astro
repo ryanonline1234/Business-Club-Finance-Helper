@@ -1,0 +1,40 @@
+---
+import Sidebar from '../components/Sidebar.astro';
+
+interface Props {
+  title: string;
+  subtitle?: string;
+  user: { name: string | null; role: string; email: string };
+}
+
+const { title, subtitle = 'Spring 2026 · Officer View', user } = Astro.props;
+const badgeLabel = user.role === 'admin' ? 'Admin' : user.role === 'treasurer' ? 'Treasurer' : 'Member';
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{title} — Mitty Business Club</title>
+  <link rel="stylesheet" href="/styles/global.css" />
+</head>
+<body>
+  <div class="shell">
+    <Sidebar currentPath={Astro.url.pathname} />
+
+    <div class="main">
+      <div class="topbar">
+        <div>
+          <div class="topbar-title">{title}</div>
+          <div class="topbar-sub">{subtitle}</div>
+        </div>
+        <span class="badge">{badgeLabel}</span>
+      </div>
+
+      <div class="content">
+        <slot />
+      </div>
+    </div>
+  </div>
+</body>
+</html>

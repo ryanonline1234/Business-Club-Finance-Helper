@@ -1,0 +1,12 @@
+---
+import { getSession } from '../lib/auth';
+
+const headers = new Headers();
+const user = await getSession(Astro.request, headers);
+
+if (user) {
+  return Astro.redirect('/calendar');
+} else {
+  return Astro.redirect('/login');
+}
+---

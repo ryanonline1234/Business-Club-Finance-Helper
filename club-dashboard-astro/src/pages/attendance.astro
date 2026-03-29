@@ -1,0 +1,120 @@
+---
+import DashboardLayout from '../layouts/DashboardLayout.astro';
+import { requireAuth } from '../lib/auth';
+import { supabaseAdmin } from '../lib/supabase';
+
+const responseHeaders = new Headers();
+const user = await requireAuth(Astro.request, responseHeaders, Astro.redirect);
+
+// Fetch attendance with member + event info
+const { data: records } = await supabaseAdmin
+  .from('attendance')
+  .select(`
+    id,
+    checked_in_at,
+    method,
+    member_id,
+    event_id,
+    profiles:member_id ( name, role ),
+    events:event_id ( title, start_time )
+  `)
+  .order('checked_in_at', { ascending: false });
+
+// Fetch events for filter dropdown
+const { data: events } = await supabaseAdmin
+  .from('events')
+  .select('id, title, start_time')
+  .order('start_time', { ascending: false });
+
+// Stats
+const { count: totalMembers } = await supabaseAdmin
+  .from('profiles')
+  .select('id', { count: 'exact', head: true });
+
+const { count: totalEvents } = await supabaseAdmin
+  .from('events')
+  .select('id', { count: 'exact', head: true })
+  .eq('status', 'completed');
+
+const avgAttendance = totalMembers && totalEvents && records
+  ? Math.round((records.length / Math.max(totalEvents * totalMembers, 1)) * 100)
+  : 0;
+---
+<DashboardLayout title="Attendance Tracker" user={user}>
+  <div class="stats-row">
+    <div class="stat-box">
+      <div class="stat-num">{avgAttendance}%</div>
+      <div class="stat-lbl">Avg attendance</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-num">{totalMembers ?? 0}</div>
+      <div class="stat-lbl">Total members</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-num">{totalEvents ?? 0}</div>
+      <div class="stat-lbl">Meetings held</div>
+    </div>
+  </div>
+
+  <div class="att-controls">
+    <select id="event-filter">
+      <option value="">All events</option>
+      {(events ?? []).map(e => (
+        <option value={e.id}>
+          {e.title} — {new Date(e.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+        </option>
+      ))}
+    </select>
+    <input type="text" id="member-search" placeholder="Search member..." style="flex:1" />
+  </div>
+
+  {records && records.length > 0 ? (
+    <table class="att-table" id="att-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Event</th>
+          <th>Status</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        {records.map(r => {
+          const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
+          const event = Array.isArray(r.events) ? r.events[0] : r.events;
+          const checkinTime = r.checked_in_at
+            ? new Date(r.checked_in_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+            : '—';
+          return (
+            <tr data-event={r.event_id} data-name={(profile?.name ?? '').toLowerCase()}>
+              <td>{profile?.name ?? 'Unknown'}</td>
+              <td>{event?.title ?? '—'}</td>
+              <td><span class="status-badge present">Present</span></td>
+              <td>{checkinTime}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  ) : (
+    <div class="empty-state">No attendance records yet</div>
+  )}
+</DashboardLayout>
+
+<script>
+const eventFilter = document.getElementById('event-filter') as HTMLSelectElement;
+const memberSearch = document.getElementById('member-search') as HTMLInputElement;
+
+function filterTable() {
+  const eventId = eventFilter.value;
+  const search = memberSearch.value.toLowerCase();
+  document.querySelectorAll<HTMLTableRowElement>('#att-table tbody tr').forEach(row => {
+    const matchEvent = !eventId || row.dataset.event === eventId;
+    const matchName  = !search || (row.dataset.name ?? '').includes(search);
+    row.style.display = matchEvent && matchName ? '' : 'none';
+  });
+}
+
+eventFilter?.addEventListener('change', filterTable);
+memberSearch?.addEventListener('input', filterTable);
+</script>

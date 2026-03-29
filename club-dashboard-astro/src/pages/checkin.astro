@@ -1,0 +1,109 @@
+---
+// Public page — no auth required (members scan this on their phones)
+import { verifyQRToken } from '../lib/qrcode';
+import { supabaseAdmin } from '../lib/supabase';
+
+const token = Astro.url.searchParams.get('token');
+
+let eventTitle = '';
+let eventId = '';
+let tokenError = '';
+
+if (!token) {
+  tokenError = 'No check-in token found. Please scan a valid QR code.';
+} else {
+  const payload = await verifyQRToken(token);
+  if (!payload) {
+    tokenError = 'This QR code has expired or is invalid. Ask an officer to generate a new one.';
+  } else {
+    eventId = payload.event_id;
+    const { data: event } = await supabaseAdmin
+      .from('events')
+      .select('title')
+      .eq('id', eventId)
+      .single();
+    eventTitle = event?.title ?? 'Club Event';
+  }
+}
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Check In — Mitty Business Club</title>
+  <link rel="stylesheet" href="/styles/global.css" />
+</head>
+<body>
+  <div class="checkin-shell">
+    <div class="checkin-card">
+      {tokenError ? (
+        <>
+          <div class="checkin-icon">⚠️</div>
+          <div class="checkin-title">Invalid QR Code</div>
+          <div class="checkin-sub">{tokenError}</div>
+        </>
+      ) : (
+        <>
+          <div class="checkin-icon">📋</div>
+          <div class="checkin-title">{eventTitle}</div>
+          <div class="checkin-sub">Tap the button below to mark your attendance</div>
+
+          <button class="btn-primary" id="checkin-btn" style="width:100%;justify-content:center;margin-top:8px;">
+            Check In
+          </button>
+
+          <div id="result-msg" style="display:none"></div>
+        </>
+      )}
+    </div>
+  </div>
+</body>
+</html>
+
+{!tokenError && (
+  <script define:vars={{ token, eventId }}>
+    const btn = document.getElementById('checkin-btn');
+    const msg = document.getElementById('result-msg');
+
+    btn?.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.textContent = 'Checking in...';
+
+      try {
+        const res = await fetch('/api/attendance/checkin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ qr_token: token }),
+          credentials: 'include',
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          btn.style.display = 'none';
+          msg.style.display = 'block';
+          msg.className = 'success-msg';
+          msg.textContent = `✓ Checked in${data.member_name ? ', ' + data.member_name : ''}!`;
+        } else if (res.status === 409) {
+          btn.style.display = 'none';
+          msg.style.display = 'block';
+          msg.className = 'success-msg';
+          msg.textContent = 'You\'re already checked in for this event.';
+        } else {
+          btn.disabled = false;
+          btn.textContent = 'Check In';
+          msg.style.display = 'block';
+          msg.className = 'error-msg';
+          msg.textContent = data.error ?? 'Something went wrong. Try again.';
+        }
+      } catch {
+        btn.disabled = false;
+        btn.textContent = 'Check In';
+        msg.style.display = 'block';
+        msg.className = 'error-msg';
+        msg.textContent = 'Network error. Please try again.';
+      }
+    });
+  </script>
+)}

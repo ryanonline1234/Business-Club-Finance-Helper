@@ -1,0 +1,35 @@
+---
+import DashboardLayout from '../layouts/DashboardLayout.astro';
+import { requireAuth } from '../lib/auth';
+import { supabaseAdmin } from '../lib/supabase';
+
+const responseHeaders = new Headers();
+const user = await requireAuth(Astro.request, responseHeaders, Astro.redirect);
+
+// announcements table may not exist yet — gracefully handle the error
+const { data: announcements, error } = await supabaseAdmin
+  .from('announcements')
+  .select('id, title, body, created_at, author_name')
+  .order('created_at', { ascending: false })
+  .limit(20);
+
+const items = announcements ?? [];
+---
+<DashboardLayout title="Announcements" user={user}>
+  <div class="announce-list">
+    {items.length > 0 ? items.map(a => (
+      <div class="announce-card">
+        <div class="announce-title">{a.title}</div>
+        <div class="announce-body">{a.body}</div>
+        <div class="announce-meta">
+          Posted by {a.author_name ?? 'Officer'} ·{' '}
+          {new Date(a.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+        </div>
+      </div>
+    )) : (
+      <div class="empty-state">
+        {error ? 'Announcements table not set up yet — run the migration in Supabase.' : 'No announcements yet.'}
+      </div>
+    )}
+  </div>
+</DashboardLayout>
