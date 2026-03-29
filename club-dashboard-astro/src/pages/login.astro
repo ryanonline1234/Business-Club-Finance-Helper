@@ -1,12 +1,11 @@
 ---
 import { createSupabaseServerClient } from '../lib/supabase';
 
-const responseHeaders = new Headers();
-const supabase = createSupabaseServerClient(Astro.request, responseHeaders);
+const supabase = createSupabaseServerClient(Astro.request, Astro.response.headers);
 const { data: { user } } = await supabase.auth.getUser();
 
 // Already logged in → go to calendar
-if (user) return Astro.redirect('/calendar');
+if (user) return Astro.redirect(`${new URL(Astro.request.url).origin}/calendar`);
 
 const error = Astro.url.searchParams.get('error');
 const errorMessages: Record<string, string> = {

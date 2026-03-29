@@ -3,8 +3,7 @@ import DashboardLayout from '../layouts/DashboardLayout.astro';
 import { requireAuth } from '../lib/auth';
 import { supabaseAdmin } from '../lib/supabase';
 
-const responseHeaders = new Headers();
-const user = await requireAuth(Astro.request, responseHeaders, Astro.redirect);
+const user = await requireAuth(Astro.request, Astro.response.headers, Astro.redirect);
 
 // announcements table may not exist yet — gracefully handle the error
 const { data: announcements, error } = await supabaseAdmin

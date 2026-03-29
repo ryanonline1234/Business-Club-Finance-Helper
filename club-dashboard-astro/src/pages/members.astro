@@ -3,8 +3,7 @@ import DashboardLayout from '../layouts/DashboardLayout.astro';
 import { requireAuth } from '../lib/auth';
 import { supabaseAdmin } from '../lib/supabase';
 
-const responseHeaders = new Headers();
-const user = await requireAuth(Astro.request, responseHeaders, Astro.redirect);
+const user = await requireAuth(Astro.request, Astro.response.headers, Astro.redirect);
 
 const { data: members } = await supabaseAdmin
   .from('profiles')

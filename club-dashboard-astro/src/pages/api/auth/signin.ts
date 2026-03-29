@@ -1,16 +1,19 @@
 import type { APIRoute } from 'astro';
 import { createSupabaseServerClient } from '../../../lib/supabase';
 
-export const GET: APIRoute = async ({ request, redirect }) => {
+export const GET: APIRoute = async ({ request }) => {
   const responseHeaders = new Headers();
   const supabase = createSupabaseServerClient(request, responseHeaders);
 
-  const siteUrl = import.meta.env.SITE_URL ?? 'http://localhost:3000';
+  // Always derive the callback URL from the current request origin so this
+  // works on every Vercel deployment (production + every preview URL).
+  const origin = new URL(request.url).origin;
+  const redirectTo = `${origin}/api/auth/callback`;
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${siteUrl}/api/auth/callback`,
+      redirectTo,
       queryParams: {
         access_type: 'offline',
         prompt: 'consent',
@@ -19,11 +22,15 @@ export const GET: APIRoute = async ({ request, redirect }) => {
   });
 
   if (error || !data.url) {
-    return redirect('/login?error=auth-error');
+    const loginUrl = `${origin}/login?error=auth-error`;
+    return new Response(null, {
+      status: 302,
+      headers: { location: loginUrl },
+    });
   }
 
-  // Forward any cookies Supabase set (e.g. PKCE verifier)
-  const location = data.url;
-  responseHeaders.set('location', location);
+  // Supabase sets a PKCE verifier cookie — forward it in the same response
+  // that redirects the browser to Google so the cookie is on the right domain.
+  responseHeaders.set('location', data.url);
   return new Response(null, { status: 302, headers: responseHeaders });
 };

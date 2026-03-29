@@ -8,19 +8,20 @@ export interface SessionUser {
 }
 
 /**
- * Get the current session user from the request cookies.
- * Returns null if no valid session.
+ * Get the current session user.
+ * Pass Astro.response.headers as responseHeaders so any session-refresh
+ * cookies Supabase issues get forwarded to the browser automatically.
  */
 export async function getSession(
   request: Request,
   responseHeaders: Headers
 ): Promise<SessionUser | null> {
   const supabase = createSupabaseServerClient(request, responseHeaders);
-  const { data: { user }, error } = await supabase.auth.getUser();
 
+  // getUser() validates the JWT with Supabase — more reliable than getSession()
+  const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return null;
 
-  // Fetch role + name from profiles table
   const { data: profile } = await supabase
     .from('profiles')
     .select('name, role')
@@ -36,8 +37,8 @@ export async function getSession(
 }
 
 /**
- * Require auth — returns user or redirects to /login.
- * Use at the top of every protected .astro page.
+ * Require auth — returns user or throws a redirect response to /login.
+ * Uses Astro.response.headers so refreshed session cookies are forwarded.
  */
 export async function requireAuth(
   request: Request,
@@ -46,7 +47,8 @@ export async function requireAuth(
 ): Promise<SessionUser> {
   const user = await getSession(request, responseHeaders);
   if (!user) {
-    throw redirect('/login');
+    const origin = new URL(request.url).origin;
+    throw redirect(`${origin}/login`);
   }
   return user;
 }
